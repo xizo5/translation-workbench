@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>本地翻译工作台</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230E7C66'/%3E%3Cpath d='M7 10h10M12 6v4M8.5 18c1.5 1.8 3.4 3 5.5 3.4M8.5 14c2.2 2.7 5 4.4 7.5 4.8' stroke='%23fff' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3Cpath d='M20 26l4-11 4 11m-7-3.5h6' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#F6F8FA; --panel:#FFFFFF; --ink:#1F2328; --ink-2:#57606A; --ink-3:#8B949E;
+  --line:#D8DEE4; --line-2:#E9EDF1; --accent:#0E7C66; --accent-soft:#E5F3EF;
+  --accent-ink:#0B5E4E; --danger:#C93A3A; --danger-soft:#FBECEC;
+  --radius:10px; --shadow:0 1px 2px rgba(31,35,40,.06),0 4px 14px rgba(31,35,40,.05);
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow-x:hidden}
+body{
+  font-family:"Noto Sans SC",-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  background:var(--bg); color:var(--ink); font-size:14px; line-height:1.6;
+}
+button{font-family:inherit;cursor:pointer}
+textarea,input,select{font-family:inherit;font-size:14px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 20px 60px}
+
+/* ===== 顶栏 ===== */
+.topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px}
+.brand svg{display:block}
+.status-pill{
+  display:inline-flex;align-items:center;gap:6px;padding:3px 12px;border-radius:999px;
+  font-size:12px;font-weight:500;background:var(--line-2);color:var(--ink-2);
+}
+.status-pill .dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3)}
+.status-pill.on{background:var(--accent-soft);color:var(--accent-ink)}
+.status-pill.on .dot{background:var(--accent)}
+.status-pill.err{background:var(--danger-soft);color:var(--danger)}
+.status-pill.err .dot{background:var(--danger)}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.field{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2)}
+.select, .input{
+  border:1px solid var(--line);border-radius:8px;background:var(--panel);
+  padding:6px 10px;color:var(--ink);
+}
+.select:focus,.input:focus{border-color:var(--accent);outline:none}
+.select{min-width:170px}
+
+/* ===== 错误横幅 ===== */
+.banner{
+  display:none;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:var(--radius);
+  background:var(--danger-soft);color:var(--danger);margin-bottom:16px;font-size:13px;
+}
+.banner.show{display:flex}
+.banner b{font-weight:700}
+.banner code{font-family:var(--mono);background:rgba(201,58,58,.08);padding:1px 5px;border-radius:4px}
+
+/* ===== 翻译主区 ===== */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.translate-panel{padding:16px}
+.dir-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.dir-row .field{font-weight:500}
+.btn{
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  border-radius:8px;padding:7px 14px;font-size:13px;display:inline-flex;align-items:center;gap:6px;
+  transition:background .15s,border-color .15s;
+}
+.btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-ink)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.sm{padding:4px 10px;font-size:12px}
+.swap-btn{padding:6px 9px;border-radius:8px}
+.editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.editor{display:flex;flex-direction:column;min-height:260px}
+.editor-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.editor-head label{font-size:13px;font-weight:600;color:var(--ink-2)}
+.editor textarea{
+  flex:1;resize:vertical;min-height:220px;border:1px solid var(--line);border-radius:var(--radius);
+  padding:12px;color:var(--ink);background:#FCFDFD;line-height:1.7;
+}
+.editor textarea:focus{border-color:var(--accent);outline:none;background:#fff}
+.editor textarea[readonly]{background:var(--bg);color:var(--ink)}
+.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.spacer{flex:1}
+.stats{font-family:var(--mono);font-size:12px;color:var(--ink-2);display:flex;gap:14px;flex-wrap:wrap}
+.stats b{color:var(--accent-ink);font-weight:600}
+
+/* ===== 模式切换 ===== */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:none;background:var(--panel);color:var(--ink-2);padding:6px 14px;font-size:13px}
+.seg button.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.mode-hint{font-size:12px;color:var(--ink-3)}
+
+/* ===== 批量结果 ===== */
+.batch-results{margin-top:14px;display:none}
+.batch-results.show{display:block}
+.batch-item{display:flex;gap:12px;padding:10px 12px;border-bottom:1px solid var(--line-2);font-size:13px;align-items:baseline}
+.batch-item:last-child{border-bottom:none}
+.batch-idx{font-family:var(--mono);color:var(--ink-3);min-width:26px;text-align:right}
+.batch-src{flex:1;color:var(--ink-2);white-space:pre-wrap;word-break:break-all}
+.batch-dst{flex:1;color:var(--ink);white-space:pre-wrap;word-break:break-all}
+.batch-err{color:var(--danger);font-size:12px}
+.batch-progress{font-size:12px;color:var(--ink-2);margin:10px 2px 2px}
+
+/* ===== 下方面板 ===== */
+.lower-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.sub-panel{padding:14px}
+.sub-panel h3{font-size:13px;font-weight:600;color:var(--ink-2);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.term-form{display:flex;gap:8px;margin-bottom:10px}
+.term-form .input{flex:1;min-width:0}
+.term-chips{display:flex;flex-wrap:wrap;gap:8px;min-height:28px}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);color:var(--accent-ink);
+  border-radius:999px;padding:3px 8px 3px 12px;font-size:12px;
+}
+.chip b{font-weight:600}
+.chip .del{border:none;background:none;color:var(--accent-ink);font-size:14px;line-height:1;padding:0 2px;opacity:.7}
+.chip .del:hover{opacity:1}
+.empty-tip{color:var(--ink-3);font-size:12px}
+.hist-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto}
+.hist-item{
+  display:flex;gap:10px;align-items:center;border:1px solid var(--line-2);border-radius:8px;
+  padding:6px 10px;font-size:12px;cursor:pointer;
+}
+.hist-item:hover{border-color:var(--accent)}
+.hist-item .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)}
+.hist-item .d{font-family:var(--mono);color:var(--ink-3);font-size:11px}
+
+/* ===== 设置弹窗 ===== */
+.modal{display:none;position:fixed;inset:0;background:rgba(31,35,40,.45);z-index:50;align-items:center;justify-content:center;padding:20px}
+.modal.show{display:flex}
+.modal-card{background:var(--panel);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.18);width:100%;max-width:460px;padding:18px 20px;border:1px solid var(--line)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.modal-head h2{font-size:15px;color:var(--ink)}
+.modal-x{border:none;background:none;font-size:20px;line-height:1;color:var(--ink-2);padding:2px 6px;border-radius:6px}
+.modal-x:hover{background:var(--line-2);color:var(--ink)}
+.set-field{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--ink-2);margin-bottom:12px}
+.set-field .input{width:100%}
+.set-actions{display:flex;align-items:center;gap:10px;margin-top:16px}
+.set-tip{font-size:12px;color:var(--ink-3);line-height:1.6;margin-top:2px}
+
+/* ===== 响应式 ===== */
+@media (max-width:900px){
+  .editor-grid,.lower-grid{grid-template-columns:1fr}
+  .top-right{margin-left:0;width:100%;justify-content:space-between}
+}
+@media (max-width:520px){
+  .stats{flex-direction:column;gap:4px}
+  .dir-row .select{min-width:120px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== 顶栏 ===== -->
+  <header class="topbar">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#0E7C66"/><path d="M7 10h10M12 6v4M8.5 18c1.5 1.8 3.4 3 5.5 3.4M8.5 14c2.2 2.7 5 4.4 7.5 4.8" stroke="#fff" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M20 26l4-11 4 11m-7-3.5h6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+      本地翻译工作台
+    </div>
+    <span id="statusPill" class="status-pill"><span class="dot"></span><span id="statusText">正在检查 Ollama…</span></span>
+    <div class="top-right">
+      <label class="field" for="modelSel">模型
+        <select id="modelSel" class="select"></select>
+      </label>
+      <button id="refreshBtn" class="btn sm" type="button" title="重新连接 Ollama">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
+        刷新
+      </button>
+      <button id="settingsBtn" class="btn sm" type="button" title="设置">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        设置
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== 错误横幅 ===== -->
+  <div id="banner" class="banner" role="alert">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none;margin-top:2px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3v.5"/></svg>
+    <div id="bannerText"></div>
+  </div>
+
+  <!-- ===== 翻译主区 ===== -->
+  <section class="panel translate-panel">
+    <div class="dir-row">
+      <span class="field">原文语言
+        <select id="srcLang" class="select">
+          <option value="自动检测" selected>自动检测</option>
+          <option value="中文">中文</option>
+          <option value="英文">英文</option>
+          <option value="日文">日文</option>
+          <option value="韩文">韩文</option>
+        </select>
+      </span>
+      <button id="swapBtn" class="btn swap-btn" type="button" title="交换原文与译文">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4"/></svg>
+      </button>
+      <span class="field">目标语言
+        <select id="tgtLang" class="select">
+          <option value="英文" selected>英文</option>
+          <option value="中文">中文</option>
+          <option value="日文">日文</option>
+          <option value="韩文">韩文</option>
+          <option value="自定义">自定义…</option>
+        </select>
+      </span>
+      <input id="customLang" class="input" placeholder="输入目标语言，如：法语" style="display:none;width:150px">
+    </div>
+
+    <div class="dir-row" style="margin-bottom:12px">
+      <div class="seg" role="group" aria-label="翻译模式">
+        <button id="modeSingle" class="on" type="button">整段翻译</button>
+        <button id="modeBatch" type="button">逐行批量</button>
+      </div>
+      <span id="modeHint" class="mode-hint">整段翻译：一次处理整篇文本</span>
+    </div>
+
+    <div class="editor-grid">
+      <div class="editor">
+        <div class="editor-head"><label for="srcText">原文</label><button id="clearBtn" class="btn sm" type="button">清空</button></div>
+        <textarea id="srcText" placeholder="粘贴要翻译的文本…" spellcheck="false"></textarea>
+      </div>
+      <div class="editor">
+        <div class="editor-head"><label for="dstText">译文</label><button id="copyBtn" class="btn sm" type="button">复制译文</button></div>
+        <textarea id="dstText" readonly placeholder="译文将显示在这里"></textarea>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="goBtn" class="btn primary" type="button">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m0 0-6-6m6 6-6 6"/></svg>
+        <span id="goLabel">翻译</span>
+      </button>
+      <div class="spacer"></div>
+      <div id="stats" class="stats" aria-live="polite"></div>
+    </div>
+
+    <div id="batchResults" class="batch-results">
+      <div id="batchProgress" class="batch-progress"></div>
+      <div id="batchList"></div>
+    </div>
+  </section>
+
+  <!-- ===== 术语表 + 历史 ===== -->
+  <div class="lower-grid">
+    <section class="panel sub-panel">
+      <h3>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7V5h16v2M9 20h6M12 5v15"/></svg>
+        术语干预
+      </h3>
+      <div class="term-form">
+        <input id="termSrc" class="input" placeholder="源词，如：褶皱" maxlength="40">
+        <input id="termDst" class="input" placeholder="目标词，如：wrinkle effects" maxlength="60">
+        <button id="termAdd" class="btn" type="button">添加</button>
+      </div>
+      <div id="termChips" class="term-chips"></div>
+      <p class="empty-tip" id="termTip" style="margin-top:8px">添加术语后，翻译会强制使用指定译法。设置保存在本浏览器。</p>
+    </section>
+
+    <section class="panel sub-panel">
+      <h3>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg>
+        翻译历史
+      </h3>
+      <div class="hist-list" id="histList"></div>
+      <p class="empty-tip" id="histTip">暂无历史记录。翻译过的内容会保存在本地浏览器。</p>
+    </section>
+  </div>
+
+  <!-- ===== 设置弹窗 ===== -->
+  <div id="settingsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="settingsTitle">设置</h2>
+        <button id="settingsClose" class="modal-x" type="button" aria-label="关闭">×</button>
+      </div>
+      <label class="set-field">接口类型
+        <select id="setApiType" class="select">
+          <option value="ollama">Ollama 原生（本地，无需 Key）</option>
+          <option value="openai">OpenAI 兼容（云端服务）</option>
+        </select>
+      </label>
+      <label class="set-field">Base URL
+        <input id="setBase" class="input" placeholder="http://localhost:11434">
+      </label>
+      <label class="set-field">API Key
+        <input id="setKey" class="input" type="password" placeholder="本地 Ollama 可留空">
+      </label>
+      <label class="set-field">模型名
+        <input id="setModel" class="input" list="modelList" placeholder="如 sun_leaf/HY-MT:1.8b">
+        <datalist id="modelList"></datalist>
+      </label>
+      <p class="set-tip">Ollama 原生：默认连本机 11434，无需 Key。OpenAI 兼容：填入服务地址与 Key（如 DeepSeek 等），请求走 /v1/chat/completions。设置保存在本浏览器。</p>
+      <div class="set-actions">
+        <button id="testConn" class="btn" type="button">测试连接</button>
+        <span id="testResult" class="mode-hint" aria-live="polite"></span>
+        <div class="spacer"></div>
+        <button id="settingsCancel" class="btn" type="button">取消</button>
+        <button id="settingsSave" class="btn primary" type="button">保存</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+/* ===== 状态与常量 ===== */
+var DEFAULT_API = "http://localhost:11434";
+var DEFAULT_MODEL = "sun_leaf/HY-MT:1.8b";
+var state = {
+  baseUrl: localStorage.getItem("t_work_base") || DEFAULT_API,
+  apiType: localStorage.getItem("t_work_apitype") || "ollama",
+  apiKey: localStorage.getItem("t_work_key") || "",
+  model: localStorage.getItem("t_work_model") || DEFAULT_MODEL,
+  tgtLang: localStorage.getItem("t_work_tgt") || "英文",
+  terms: JSON.parse(localStorage.getItem("t_work_terms") || "[]"),
+  history: JSON.parse(localStorage.getItem("t_work_hist") || "[]"),
+  mode: "single",
+  busy: false
+};
+function apiBase(){ return state.baseUrl.replace(/\/+$/, ""); }
+
+/* ===== DOM 引用 ===== */
+var $ = function(id){ return document.getElementById(id); };
+var srcText = $("srcText"), dstText = $("dstText");
+var goBtn = $("goBtn"), goLabel = $("goLabel"), statsEl = $("stats");
+var statusPill = $("statusPill"), statusText = $("statusText"), banner = $("banner"), bannerText = $("bannerText");
+var modelSel = $("modelSel"), srcLang = $("srcLang"), tgtLang = $("tgtLang"), customLang = $("customLang");
+var modeSingle = $("modeSingle"), modeBatch = $("modeBatch"), modeHint = $("modeHint");
+var batchResults = $("batchResults"), batchProgress = $("batchProgress"), batchList = $("batchList");
+
+/* ===== 工具函数 ===== */
+function save(key){ localStorage.setItem("t_work_" + key, key === "terms" || key === "history" ? JSON.stringify(state[key]) : state[key]); }
+function showBanner(msg){ bannerText.textContent = msg; banner.classList.add("show"); }
+function hideBanner(){ banner.classList.remove("show"); }
+function setStatus(ok, text){
+  statusPill.classList.remove("on", "err");
+  if (ok === true) statusPill.classList.add("on");
+  else if (ok === false) statusPill.classList.add("err");
+  statusText.textContent = text;
+}
+function esc(s){ var d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+/* ===== Ollama / 服务连接 ===== */
+function authHeaders(base){
+  var h = {};
+  if (base.apiKey) h["Authorization"] = "Bearer " + base.apiKey;
+  return h;
+}
+function fetchModelList(base){
+  if (base.apiType === "openai"){
+    return fetch(base.url + "/v1/models", {headers: authHeaders(base), cache: "no-store"})
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(data){ return (data.data || []).map(function(m){ return m.id; }); });
+  }
+  return fetch(base.url + "/api/tags", {cache: "no-store"})
+    .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function(data){ return (data.models || []).map(function(m){ return m.name; }); });
+}
+function checkOllama(){
+  setStatus(null, "正在检查连接…");
+  fetchModelList({url: apiBase(), apiType: state.apiType, apiKey: state.apiKey})
+    .then(function(models){
+      modelSel.innerHTML = "";
+      models.forEach(function(name){
+        var opt = document.createElement("option");
+        opt.value = name; opt.textContent = name;
+        modelSel.appendChild(opt);
+      });
+      if (models.indexOf(state.model) === -1 && models.length) state.model = models[0];
+      modelSel.value = state.model;
+      fillModelDatalist(models);
+      setStatus(true, "已连接 · " + models.length + " 个模型");
+      hideBanner();
+    })
+    .catch(function(err){
+      setStatus(false, "未连接");
+      modelSel.innerHTML = '<option value="' + esc(state.model) + '">' + esc(state.model) + "</option>";
+      showBanner("无法连接 " + apiBase() + "。请确认服务已启动（本地 Ollama 运行命令 ollama serve）。若已启动仍失败，可能是跨域限制：Ollama 需设置环境变量 OLLAMA_ORIGINS=* 后重启。错误：" + err.message);
+    });
+}
+function fillModelDatalist(names){
+  var dl = $("modelList");
+  dl.innerHTML = "";
+  names.forEach(function(n){
+    var o = document.createElement("option");
+    o.value = n;
+    dl.appendChild(o);
+  });
+}
+
+/* ===== 请求构建（按接口类型） ===== */
+function chatRequest(prompt, stream, temperature){
+  var headers = {"Content-Type": "application/json"};
+  if (state.apiType === "openai"){
+    if (state.apiKey) headers["Authorization"] = "Bearer " + state.apiKey;
+    return {
+      url: apiBase() + "/v1/chat/completions",
+      headers: headers,
+      payload: {model: state.model, messages: [{role: "user", content: prompt}], stream: stream, temperature: temperature, top_p: 0.6}
+    };
+  }
+  return {
+    url: apiBase() + "/api/chat",
+    headers: headers,
+    payload: {model: state.model, messages: [{role: "user", content: prompt}], stream: stream, options: {temperature: temperature, top_k: 20, top_p: 0.6, repeat_penalty: 1.05}}
+  };
+}
+
+/* ===== 提示词构建 ===== */
+function buildPrompt(text, tgt){
+  var parts = [];
+  if (state.terms.length){
+    parts.push("参考下面的翻译：\n" + state.terms.map(function(t){ return t.s + " 翻译成 " + t.d; }).join("\n"));
+  }
+  parts.push("将以下文本翻译为" + tgt + "，注意只需要输出翻译后的结果，不要额外解释：\n\n" + text);
+  return parts.join("\n\n");
+}
+
+/* ===== 调用服务（非流式，批量用） ===== */
+function callOllama(prompt, temperature){
+  var req = chatRequest(prompt, false, temperature);
+  return fetch(req.url, {method: "POST", headers: req.headers, body: JSON.stringify(req.payload)})
+    .then(function(r){
+      if (!r.ok) throw new Error("服务返回 " + r.status);
+      return r.json();
+    })
+    .then(function(data){
+      if (state.apiType === "openai"){
+        var usage = data.usage || {};
+        return {
+          text: (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || "").trim(),
+          inTok: usage.prompt_tokens || 0,
+          outTok: usage.completion_tokens || 0,
+          tokPerSec: null
+        };
+      }
+      var evalCount = data.eval_count || 0;
+      var evalDur = data.eval_duration || 0;
+      return {
+        text: (data.message && data.message.content || "").trim(),
+        inTok: data.prompt_eval_count || 0,
+        outTok: evalCount,
+        tokPerSec: evalDur ? +(evalCount / (evalDur / 1e9)).toFixed(1) : null
+      };
+    });
+}
+
+/* ===== 流式分块解析 ===== */
+function parseOllamaChunks(buf, onToken, onDone){
+  var lines = buf.split("\n");
+  var rest = lines.pop();
+  for (var i = 0; i < lines.length; i++){
+    var line = lines[i].trim();
+    if (!line) continue;
+    var obj;
+    try { obj = JSON.parse(line); } catch (e) { continue; }
+    if (obj.done){ onDone(obj); }
+    else if (obj.message && obj.message.content){ onToken(obj.message.content); }
+  }
+  return rest;
+}
+function parseOpenAIChunks(buf, onToken, onDone){
+  var events = buf.split("\n\n");
+  var rest = events.pop();
+  for (var i = 0; i < events.length; i++){
+    var ev = events[i];
+    var dataLine = "";
+    var parts = ev.split("\n");
+    for (var j = 0; j < parts.length; j++){
+      if (parts[j].indexOf("data:") === 0) dataLine = parts[j].slice(5).trim();
+    }
+    if (!dataLine) continue;
+    if (dataLine === "[DONE]"){ onDone({done: true}); continue; }
+    var obj;
+    try { obj = JSON.parse(dataLine); } catch (e) { continue; }
+    var choice = obj.choices && obj.choices[0];
+    if (choice && choice.delta && choice.delta.content){ onToken(choice.delta.content); }
+    if (obj.usage){
+      onDone({done: true, prompt_eval_count: obj.usage.prompt_tokens || 0, eval_count: obj.usage.completion_tokens || 0, eval_duration: 0});
+    } else if (choice && choice.finish_reason){
+      onDone({done: true, prompt_eval_count: 0, eval_count: 0, eval_duration: 0});
+    }
+  }
+  return rest;
+}
+
+/* ===== 调用服务（流式） ===== */
+function callOllamaStream(prompt, onToken, signal){
+  var req = chatRequest(prompt, true, 0.7);
+  return fetch(req.url, {method: "POST", headers: req.headers, body: JSON.stringify(req.payload), signal: signal})
+    .then(function(r){
+      if (!r.ok) throw new Error("服务返回 " + r.status);
+      var reader = r.body.getReader();
+      var decoder = new TextDecoder("utf-8");
+      var buf = "";
+      var doneInfo = null;
+      function pump(){
+        return reader.read().then(function(res){
+          if (res.done) return doneInfo;
+          buf += decoder.decode(res.value, {stream: true});
+          if (state.apiType === "openai"){
+            buf = parseOpenAIChunks(buf, onToken, function(d){ doneInfo = d; });
+          } else {
+            buf = parseOllamaChunks(buf, onToken, function(d){ doneInfo = d; });
+          }
+          return pump();
+        });
+      }
+      return pump();
+    });
+}
+
+/* ===== 单条翻译（流式） ===== */
+var abortCtl = null;
+function doTranslate(){
+  var text = srcText.value.trim();
+  if (!text){ srcText.focus(); return; }
+  if (state.busy){ if (abortCtl) abortCtl.abort(); return; }
+  state.busy = true;
+  goLabel.textContent = "停止";
+  dstText.value = ""; statsEl.textContent = "";
+  abortCtl = new AbortController();
+  var t0 = performance.now();
+  var outBuf = "";
+  var rafPending = false;
+  function scheduleRender(){
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(function(){
+      rafPending = false;
+      dstText.value = outBuf;
+      statsEl.textContent = "翻译中… 已输出 " + outBuf.length + " 字 · " + Math.round(performance.now() - t0) + "ms";
+    });
+  }
+  callOllamaStream(buildPrompt(text, currentTargetLang()), function(tok){ outBuf += tok; scheduleRender(); }, abortCtl.signal)
+    .then(function(doneInfo){
+      dstText.value = outBuf;
+      var ms = Math.round(performance.now() - t0);
+      var inTok = doneInfo ? (doneInfo.prompt_eval_count || 0) : 0;
+      var evalCount = doneInfo ? (doneInfo.eval_count || 0) : 0;
+      var evalDur = doneInfo ? (doneInfo.eval_duration || 0) : 0;
+      var tokPerSec = evalDur ? +(evalCount / (evalDur / 1e9)).toFixed(1) : (evalCount && ms ? +(evalCount / (ms / 1000)).toFixed(1) : null);
+      statsEl.innerHTML = "耗时 <b>" + ms + "</b>ms · 输入 <b>" + (inTok || "—") + "</b> tok · 输出 <b>" +
+        (evalCount ? evalCount + " tok" : outBuf.length + " 字") + "</b>" +
+        (tokPerSec ? " · <b>" + tokPerSec + "</b> tok/s" : "");
+      addHistory(text, outBuf, ms);
+    })
+    .catch(function(err){
+      if (err && err.name === "AbortError"){ statsEl.textContent = "已停止，保留已生成的部分"; }
+      else showBanner("翻译失败：" + err.message + "。请确认 Ollama 正在运行。");
+    })
+    .finally(function(){
+      state.busy = false;
+      abortCtl = null;
+      goLabel.textContent = "翻译";
+    });
+}
+
+/* ===== 批量翻译 ===== */
+function doBatch(){
+  var raw = srcText.value;
+  var lines = raw.split(/\n+/).map(function(s){ return s.trim(); }).filter(Boolean);
+  if (!lines.length){ srcText.focus(); return; }
+  if (state.busy) return;
+  state.busy = true;
+  goBtn.disabled = true; goLabel.textContent = "批量翻译中…";
+  batchResults.classList.add("show");
+  batchList.innerHTML = "";
+  var tgt = currentTargetLang();
+  var results = new Array(lines.length);
+  var done = 0;
+  batchProgress.textContent = "0/" + lines.length + " 条完成…";
+  function render(){
+    var html = "";
+    for (var i = 0; i < lines.length; i++){
+      var r = results[i];
+      html += '<div class="batch-item"><span class="batch-idx">' + (i + 1) + '</span>';
+      html += '<span class="batch-src">' + esc(lines[i]) + '</span>';
+      if (!r) html += '<span class="batch-dst" style="color:#8B949E">翻译中…</span>';
+      else if (r.err) html += '<span class="batch-err">失败：' + esc(r.err) + "</span>";
+      else html += '<span class="batch-dst">' + esc(r.text) + "</span>";
+      html += "</div>";
+    }
+    batchList.innerHTML = html;
+    batchProgress.textContent = done + "/" + lines.length + " 条完成";
+  }
+  render();
+  var CONC = 3, next = 0;
+  function worker(){
+    if (next >= lines.length) return;
+    var idx = next++;
+    var t0 = performance.now();
+    callOllama(buildPrompt(lines[idx], tgt), 0.7)
+      .then(function(res){ results[idx] = {text: res.text, ms: Math.round(performance.now() - t0)}; })
+      .catch(function(e){ results[idx] = {err: e.message}; })
+      .finally(function(){ done++; render(); worker(); });
+  }
+  for (var w = 0; w < CONC; w++) worker();
+  var totalMs = 0;
+  (function poll(){
+    if (done < lines.length){ setTimeout(poll, 150); return; }
+    state.busy = false;
+    goBtn.disabled = false; goLabel.textContent = "翻译";
+    var joined = results.map(function(r){ return r.text || ""; }).join("\n");
+    if (joined){ dstText.value = joined; addHistory("批量 " + lines.length + " 条", joined, totalMs); }
+  })();
+  /* 轮询结束前累计总耗时展示 */
+  var tAll = performance.now();
+  setTimeout(function(){ if (done < lines.length) batchProgress.textContent = done + "/" + lines.length + " 条完成"; }, 600);
+}
+
+/* ===== 历史与术语 ===== */
+function addHistory(src, dst, ms){
+  state.history.unshift({s: src.slice(0, 80), d: dst.slice(0, 80), ms: ms, t: Date.now()});
+  if (state.history.length > 20) state.history.pop();
+  save("history");
+  renderHistory();
+}
+function renderHistory(){
+  var list = $("histList");
+  $("histTip").style.display = state.history.length ? "none" : "block";
+  list.innerHTML = state.history.map(function(h, i){
+    return '<div class="hist-item" data-i="' + i + '"><span class="t">' + esc(h.s) +
+      "</span><span class=\"d\">" + h.ms + "ms</span></div>";
+  }).join("");
+}
+function renderTerms(){
+  var wrap = $("termChips");
+  $("termTip").style.display = state.terms.length ? "none" : "block";
+  wrap.innerHTML = state.terms.map(function(t, i){
+    return '<span class="chip"><b>' + esc(t.s) + "</b> → " + esc(t.d) +
+      '<button class="del" data-i="' + i + '" title="删除" aria-label="删除术语">×</button></span>';
+  }).join("");
+}
+function currentTargetLang(){
+  return tgtLang.value === "自定义" ? (customLang.value.trim() || "英文") : tgtLang.value;
+}
+
+/* ===== 设置弹窗 ===== */
+function openSettings(){
+  $("setApiType").value = state.apiType;
+  $("setBase").value = state.baseUrl;
+  $("setKey").value = state.apiKey;
+  $("setModel").value = state.model;
+  $("testResult").textContent = "";
+  $("settingsModal").classList.add("show");
+}
+function closeSettings(){ $("settingsModal").classList.remove("show"); }
+function saveSettings(){
+  state.apiType = $("setApiType").value;
+  state.baseUrl = $("setBase").value.trim() || DEFAULT_API;
+  state.apiKey = $("setKey").value.trim();
+  state.model = $("setModel").value.trim() || DEFAULT_MODEL;
+  localStorage.setItem("t_work_base", state.baseUrl);
+  localStorage.setItem("t_work_apitype", state.apiType);
+  localStorage.setItem("t_work_key", state.apiKey);
+  localStorage.setItem("t_work_model", state.model);
+  closeSettings();
+  checkOllama();
+}
+function testConnection(){
+  var base = {url: $("setBase").value.trim() || DEFAULT_API, apiType: $("setApiType").value, apiKey: $("setKey").value.trim()};
+  var el = $("testResult");
+  el.textContent = "测试中…";
+  fetchModelList(base)
+    .then(function(models){
+      fillModelDatalist(models);
+      el.textContent = "连接成功，发现 " + models.length + " 个模型";
+    })
+    .catch(function(err){ el.textContent = "连接失败：" + err.message; });
+}
+
+/* ===== 事件绑定 ===== */
+function bindEvents(){
+  $("refreshBtn").addEventListener("click", checkOllama);
+  goBtn.addEventListener("click", function(){ state.mode === "batch" ? doBatch() : doTranslate(); });
+  srcText.addEventListener("keydown", function(e){
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter"){ e.preventDefault(); state.mode === "batch" ? doBatch() : doTranslate(); }
+  });
+  $("clearBtn").addEventListener("click", function(){ srcText.value = ""; dstText.value = ""; statsEl.textContent = ""; srcText.focus(); });
+  $("copyBtn").addEventListener("click", function(){
+    var v = dstText.value;
+    if (!v) return;
+    (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject())
+      .then(function(){ $("copyBtn").textContent = "已复制"; setTimeout(function(){ $("copyBtn").textContent = "复制译文"; }, 1200); })
+      .catch(function(){ dstText.select(); document.execCommand("copy"); $("copyBtn").textContent = "已复制"; });
+  });
+  $("swapBtn").addEventListener("click", function(){
+    var t = srcText.value; srcText.value = dstText.value; dstText.value = t;
+    var s = srcLang.value; srcLang.value = tgtLang.value === "自定义" ? "自动检测" : tgtLang.value; tgtLang.value = s === "自动检测" ? "英文" : s;
+  });
+  tgtLang.addEventListener("change", function(){
+    customLang.style.display = tgtLang.value === "自定义" ? "block" : "none";
+    state.tgtLang = currentTargetLang(); save("tgt");
+  });
+  modelSel.addEventListener("change", function(){ state.model = modelSel.value; save("model"); });
+  modeSingle.addEventListener("click", function(){
+    state.mode = "single";
+    modeSingle.classList.add("on"); modeBatch.classList.remove("on");
+    modeHint.textContent = "整段翻译：一次处理整篇文本（Ctrl+Enter 快捷翻译）";
+  });
+  modeBatch.addEventListener("click", function(){
+    state.mode = "batch";
+    modeBatch.classList.add("on"); modeSingle.classList.remove("on");
+    modeHint.textContent = "逐行批量：原文按空行/换行拆成多条，并发 3 条并行翻译";
+  });
+  $("termAdd").addEventListener("click", addTerm);
+  $("termSrc").addEventListener("keydown", function(e){ if (e.key === "Enter") $("termDst").focus(); });
+  $("termDst").addEventListener("keydown", function(e){ if (e.key === "Enter") addTerm(); });
+  $("termChips").addEventListener("click", function(e){
+    var btn = e.target.closest(".del");
+    if (!btn) return;
+    state.terms.splice(+btn.dataset.i, 1); save("terms"); renderTerms();
+  });
+  $("histList").addEventListener("click", function(e){
+    var item = e.target.closest(".hist-item");
+    if (!item) return;
+    var h = state.history[+item.dataset.i];
+    if (h){ srcText.value = h.s; dstText.value = h.d; }
+  });
+  $("settingsBtn").addEventListener("click", openSettings);
+  $("settingsClose").addEventListener("click", closeSettings);
+  $("settingsCancel").addEventListener("click", closeSettings);
+  $("settingsSave").addEventListener("click", saveSettings);
+  $("testConn").addEventListener("click", testConnection);
+  $("settingsModal").addEventListener("click", function(e){ if (e.target === $("settingsModal")) closeSettings(); });
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && $("settingsModal").classList.contains("show")) closeSettings();
+  });
+}
+function addTerm(){
+  var s = $("termSrc").value.trim(), d = $("termDst").value.trim();
+  if (!s || !d){ $("termSrc").focus(); return; }
+  state.terms = state.terms.filter(function(t){ return t.s !== s; });
+  state.terms.push({s: s, d: d});
+  save("terms"); renderTerms();
+  $("termSrc").value = ""; $("termDst").value = "";
+}
+
+/* ===== 初始化 ===== */
+function init(){
+  tgtLang.value = ["英文", "中文", "日文", "韩文", "自定义"].indexOf(state.tgtLang) >= 0 ? state.tgtLang : "英文";
+  renderTerms();
+  renderHistory();
+  bindEvents();
+  checkOllama();
+}
+init();
+</script>
+</body>
+</html>
