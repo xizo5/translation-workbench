@@ -378,9 +378,7 @@ function checkOllama(){
       hideBanner();
     })
     .catch(function(err){
-      setStatus(false, "未连接");
-      modelSel.innerHTML = '<option value="' + esc(state.model) + '">' + esc(state.model) + "</option>";
-      showBanner("无法连接 " + apiBase() + "。请确认服务已启动（本地 Ollama 运行命令 ollama serve）。若已启动仍失败，可能是跨域限制：Ollama 需设置环境变量 OLLAMA_ORIGINS=* 后重启。错误：" + err.message);
+      showBanner("无法连接 " + apiBase() + "。若提示 Failed to fetch：当前是 https 页面访问本地 http 服务，被浏览器混合内容策略拦截——请改用系统浏览器 Chrome/Edge 打开本页，或直接双击本地 HTML 文件使用（本地 Ollama 已确认放行跨域）。错误：" + err.message);
     });
 }
 function fillModelDatalist(names){
@@ -672,7 +670,9 @@ function testConnection(){
       fillModelDatalist(models);
       el.textContent = "连接成功，发现 " + models.length + " 个模型";
     })
-    .catch(function(err){ el.textContent = "连接失败：" + err.message; });
+    .catch(function(err){
+      el.textContent = "连接失败：" + err.message + (err.message.indexOf("fetch") >= 0 ? "（https 页面访问本地 http 被拦截：请用系统 Chrome/Edge 打开本页，或直接双击本地 HTML 文件使用）" : "");
+    });
 }
 
 /* ===== 事件绑定 ===== */
